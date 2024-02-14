@@ -100,6 +100,7 @@ public class SearchServlet extends HttpServlet {
     }
 
     List<SearchOperator> filterOperators = new ArrayList<>();
+    List<SearchOperator> mustNotOperators = new ArrayList<>();
     List<String> errors = new ArrayList<>();
     if (filters != null) {
       for (String filter : filters) {
@@ -108,11 +109,19 @@ public class SearchServlet extends HttpServlet {
         if (c == -1) {
           errors.add("Invalid `filter`: " + filter);
         } else {
-          filterOperators.add(SearchOperator.of(
-              new Document("equals",
-                  new Document("path", filter.substring(0,c))
-                      .append("value", filter.substring(c+1)))
-          ));
+          if (filter.charAt(0) == '-') {
+            mustNotOperators.add(SearchOperator.of(
+                new Document("equals",
+                    new Document("path", filter.substring(1, c))
+                        .append("value", filter.substring(c + 1)))
+            ));
+          } else {
+            filterOperators.add(SearchOperator.of(
+                new Document("equals",
+                    new Document("path", filter.substring(0, c))
+                        .append("value", filter.substring(c + 1)))
+            ));
+          }
         }
       }
     }
@@ -184,6 +193,8 @@ public class SearchServlet extends HttpServlet {
         .must(List.of(SearchOperator.text(searchPath, List.of(q))));
     if (filterOperators.size() > 0)
       operator = operator.filter(filterOperators);
+    if (mustNotOperators.size() > 0)
+      operator = operator.mustNot(mustNotOperators);
 
     Bson searchStage = Aggregates.search(
         operator,
