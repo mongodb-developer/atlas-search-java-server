@@ -31,6 +31,9 @@ To run the search server locally, follow these steps:
         },
         {
           "type": "string"
+        },
+        {
+          "type": "stringFacet"
         }
       ],
       "genres": [
@@ -39,14 +42,15 @@ To run the search server locally, follow these steps:
         },
         {
           "type": "string"
+        },
+        {
+          "type": "stringFacet"
         }
-      ]
+      ],
+      "year": {
+        "type": "numberFacet"
+      }
     }
   }
 }
 ```
-
-_id: {
-$toString: "$_id"
-}
-
