@@ -78,6 +78,7 @@ public class SearchServlet extends HttpServlet {
     String projectFieldsValue = request.getParameter("project");
     String debugValue = request.getParameter("debug");
     String[] filters = request.getParameterMap().get("filter");
+    String sortValue = request.getParameter("sort");
 
     // Validate params
     int limit = Math.min(25, limitValue == null ? 10 : Integer.parseInt(limitValue));
@@ -141,6 +142,39 @@ public class SearchServlet extends HttpServlet {
       searchPath.add(SearchPath.fieldPath(search_field));
     }
 
+    // e.g. sort=year asc,rating desc => { "year": 1, rating: -1 }
+    Document sortOption = new Document();
+    if (sortValue != null) {
+      String[] sortSpecs = sortValue.split(",");
+      for (String sortSpec : sortSpecs) {
+        // sortSpec = "field asc|desc"
+        String[] fieldAndDirection = sortSpec.split(" ");
+        if (fieldAndDirection.length != 2) {
+          response.sendError(400, "`sort` spec invalid: " + sortSpec);
+          return;
+        }
+
+        String fieldName = fieldAndDirection[0];
+        String direction = fieldAndDirection[1];
+        if (!direction.equals("asc") && !direction.equals("desc")) {
+          response.sendError(400, "`sort` spec invalid: " + sortSpec);
+          return;
+        }
+
+        if (fieldName.equals("_score")) {
+          sortOption.append("unused",
+              new Document("$meta","searchScore").append("order", direction.equals("asc") ? 1 : -1));
+        } else {
+          sortOption.append(fieldName, direction.equals("asc") ? 1 : -1);
+        }
+      }
+    } else {
+      // Sort by descending score by default
+      // {unused: {$meta: "searchScore", order: -1}}
+      sortOption.append("unused",
+          new Document("$meta","searchScore").append("order", -1));
+    }
+
     CompoundSearchOperator operator = SearchOperator.compound()
         .must(List.of(SearchOperator.text(searchPath, List.of(q))));
     if (filterOperators.size() > 0)
@@ -152,6 +186,7 @@ public class SearchServlet extends HttpServlet {
             .option("scoreDetails", debug)
             .index(indexName)
             .count(SearchCount.total())
+            .option("sort", sortOption)
     );
 
     // $project
@@ -199,7 +234,8 @@ public class SearchServlet extends HttpServlet {
         .append("limit", limit)
         .append("search", searchFieldsValue)
         .append("project", projectFieldsValue)
-        .append("filter", filters==null ? Collections.EMPTY_LIST : List.of(filters)));
+        .append("filter", filters==null ? Collections.EMPTY_LIST : List.of(filters))
+        .append("sort", sortValue));
 
     if (debug) {
       responseDoc.put("debug", aggregationResults.explain().toBsonDocument());
