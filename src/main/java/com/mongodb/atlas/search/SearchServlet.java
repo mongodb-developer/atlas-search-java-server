@@ -94,6 +94,11 @@ public class SearchServlet extends HttpServlet {
       return;
     }
 
+    if (limit <= 0) {
+      response.sendError(400, "`limit` invalid: " + limitValue);
+      return;
+    }
+
     List<SearchOperator> filterOperators = new ArrayList<>();
     List<String> errors = new ArrayList<>();
     if (filters != null) {
