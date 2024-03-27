@@ -9,6 +9,7 @@ import com.mongodb.client.model.Aggregates;
 import com.mongodb.client.model.Projections;
 import com.mongodb.client.model.search.CompoundSearchOperator;
 import com.mongodb.client.model.search.SearchCount;
+import com.mongodb.client.model.search.SearchHighlight;
 import com.mongodb.client.model.search.SearchOperator;
 import com.mongodb.client.model.search.SearchOptions;
 import com.mongodb.client.model.search.SearchPath;
@@ -49,8 +50,8 @@ public class SearchServlet extends HttpServlet {
     String collectionName = config.getInitParameter("collection");
     indexName = config.getInitParameter("index");
 
-    MongoClient mongo_client = MongoClients.create(uri);
-    MongoDatabase database = mongo_client.getDatabase(databaseName);
+    MongoClient mongoClient = MongoClients.create(uri);
+    MongoDatabase database = mongoClient.getDatabase(databaseName);
     collection = database.getCollection(collectionName);
 
     logger.info("Servlet " + config.getServletName() + " initialized: " + databaseName + " / " + collectionName + " / " + indexName);
@@ -67,6 +68,7 @@ public class SearchServlet extends HttpServlet {
    *         [&limit=X]
    *         [&project=&lt;fields to return&gt;]
    *         [&filter=genres:Adventure&filter=&lt;field_name&gt;:&lt;field_value&gt;]
+   *         [&highlight=&lt;fields to highlight&gt;]
    *         [&debug=true]
    */
   @Override
@@ -79,6 +81,7 @@ public class SearchServlet extends HttpServlet {
     String debugValue = request.getParameter("debug");
     String[] filters = request.getParameterMap().get("filter");
     String sortValue = request.getParameter("sort");
+    String highlightFieldsValue = request.getParameter("highlight");
 
     // Validate params
     int limit = Math.min(25, limitValue == null ? 10 : Integer.parseInt(limitValue));
@@ -138,9 +141,9 @@ public class SearchServlet extends HttpServlet {
       projectFields.addAll(List.of(projectFieldsValue.split(",")));
     }
 
-    boolean include_id = false;
+    boolean includeId = false;
     if (projectFields.contains("_id")) {
-      include_id = true;
+      includeId = true;
       projectFields.remove("_id");
     }
 
@@ -152,8 +155,16 @@ public class SearchServlet extends HttpServlet {
 
     // $search
     List<SearchPath> searchPath = new ArrayList<>();
-    for (String search_field : searchFields) {
-      searchPath.add(SearchPath.fieldPath(search_field));
+    for (String searchField : searchFields) {
+      searchPath.add(SearchPath.fieldPath(searchField));
+    }
+
+    List<SearchPath> highlightPath = new ArrayList<>();
+    if (highlightFieldsValue != null) {
+      String[] highlightFields = highlightFieldsValue.split(",");
+      for (String highlightField : highlightFields) {
+        highlightPath.add(SearchPath.fieldPath(highlightField));
+      }
     }
 
     // e.g. sort=year asc,rating desc => { "year": 1, rating: -1 }
@@ -203,6 +214,7 @@ public class SearchServlet extends HttpServlet {
             .index(indexName)
             .count(SearchCount.total())
             .option("sort", sortOption)
+            .highlight(SearchHighlight.paths(highlightPath))
     );
 
     // $project
@@ -210,7 +222,7 @@ public class SearchServlet extends HttpServlet {
     if (projectFieldsValue != null) {
       // Don't add _id inclusion or exclusion if no `project` parameter specified
       projections.add(Projections.include(projectFields));
-      if (include_id) {
+      if (includeId) {
         projections.add(Projections.include("_id"));
       } else {
         projections.add(Projections.excludeId());
@@ -221,6 +233,10 @@ public class SearchServlet extends HttpServlet {
     }
     if (includeScore) {
       projections.add(Projections.metaSearchScore("_score"));
+    }
+
+    if (highlightPath.size() > 0) {
+      projections.add(Projections.metaSearchHighlights("_highlights"));
     }
 
     // Using $facet stage to provide both the documents and $$SEARCH_META data.
@@ -251,7 +267,8 @@ public class SearchServlet extends HttpServlet {
         .append("search", searchFieldsValue)
         .append("project", projectFieldsValue)
         .append("filter", filters==null ? Collections.EMPTY_LIST : List.of(filters))
-        .append("sort", sortValue));
+        .append("sort", sortValue)
+        .append("highlight", highlightFieldsValue));
 
     if (debug) {
       responseDoc.put("debug", aggregationResults.explain().toBsonDocument());
