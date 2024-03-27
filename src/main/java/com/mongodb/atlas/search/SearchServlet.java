@@ -207,15 +207,17 @@ public class SearchServlet extends HttpServlet {
     if (mustNotOperators.size() > 0)
       operator = operator.mustNot(mustNotOperators);
 
-    Bson searchStage = Aggregates.search(
-        operator,
-        SearchOptions.searchOptions()
-            .option("scoreDetails", debug)
-            .index(indexName)
-            .count(SearchCount.total())
-            .option("sort", sortOption)
-            .highlight(SearchHighlight.paths(highlightPath))
-    );
+    SearchOptions options = SearchOptions.searchOptions()
+        .option("scoreDetails", debug)
+        .index(indexName)
+        .count(SearchCount.total())
+        .option("sort", sortOption);
+
+    if (highlightPath.size() > 0) {
+      options = options.highlight(SearchHighlight.paths(highlightPath));
+    }
+
+    Bson searchStage = Aggregates.search(operator, options);
 
     // $project
     List<Bson> projections = new ArrayList<>();
