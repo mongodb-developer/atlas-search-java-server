@@ -1,9 +1,14 @@
 # Atlas Search Server
+A Java-based HTTP server `GET` interface for Atlas Search, supporting filtering,
+sorting, highlighting, pagination, and debugging.
 
 This Search Server code was initially written to support the article
-("How to Build a Search Service in Java with MongoDB")[TBD] and video[TBD].
+["How to Build a Search Service in Java with MongoDB"](https://www.mongodb.com/developer/products/atlas/atlas-search-java-server/)
+and video[TBD].
 
-It uses the `jettyRun` target and searches the `movies_index`. The search
+## Building and running locally
+
+The `jettyRun` target is used and searches the `movies_index`. The search
 server code lives under `server/`
 
 To run the search server locally, follow these steps:
@@ -12,12 +17,12 @@ To run the search server locally, follow these steps:
     * If you're not already an Atlas user, [get started with Atlas](https://www.mongodb.com/docs/atlas/getting-started/)
 * [Create an Atlas Search index](https://www.mongodb.com/docs/atlas/atlas-search/tutorial/create-index/) on the `movies` collection, named `movies_index`, using the index
   configuration below.
-* `cd server/` - work within the server directory.
 * Run the search service:
   `ATLAS_URI="<<insert your connection string here>>" ./gradlew jettyRun`
 * Visit [http://localhost:8080](http://localhost:8080)
 
-`movies_index` index configuration (JSON):
+## `movies_index` configuration
+
 ```
 {
   "analyzer": "lucene.english",
